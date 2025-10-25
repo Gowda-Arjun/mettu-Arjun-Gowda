@@ -9,6 +9,8 @@ import shutil
 import hashlib
 import json
 import re
+from html import escape
+from html.parser import HTMLParser
 import dotenv
 
 dotenv.load_dotenv()
@@ -22,6 +24,7 @@ CONTENT_DIR = "content"
 POSTS_DIR = "content/posts"
 
 PAGE_SLUG_CACHE = ".cache/page-slugs.json"
+IMAGE_MANIFEST_PATH = ".cache/image-manifest.json"
 
 
 def load_previous_slugs():
@@ -194,7 +197,8 @@ def parse_file(filepath):
     return page_config, html_data
 
 
-def tag_pages(tag_template, site_config, tags={}):
+def tag_pages(tag_template, site_config, tags=None, image_manifest=None):
+    tags = tags or {}
     tags_dir = os.path.join(OUTPUT_DIR, "tags")
     os.makedirs(tags_dir, exist_ok=True)
 
@@ -208,13 +212,21 @@ def tag_pages(tag_template, site_config, tags={}):
             posts=posts_with_tag,
             page={"title": f"Tag: {tag_name}"},
         )
+        tag_page_html = replace_images_with_processed(tag_page_html, image_manifest)
         output_path = os.path.join(tags_dir, f"{tag_name}.html")
         with open(output_path, "w") as f:
             f.write(tag_page_html)
         print(f"Generated tag page: tags/{tag_name}.html")
 
 
-def render_page(page_config, html_data, site_config, templates, all_posts=None):
+def render_page(
+    page_config,
+    html_data,
+    site_config,
+    templates,
+    image_manifest=None,
+    all_posts=None,
+):
     layout = page_config.get("layout")
     if layout not in templates:
         available = ", ".join(sorted(templates.keys())) or "none"
@@ -230,6 +242,7 @@ def render_page(page_config, html_data, site_config, templates, all_posts=None):
         render_details["posts"] = all_posts
 
     final_html = template.render(render_details)
+    final_html = replace_images_with_processed(final_html, image_manifest)
 
     if page_config["url"] == "/":
         output_path = os.path.join(OUTPUT_DIR, "index.html")
@@ -245,6 +258,175 @@ def render_page(page_config, html_data, site_config, templates, all_posts=None):
         f"Generated: {page_config['url'] if page_config['url'] != '/' else '/index.html'}"
     )
 
+
+
+def load_image_manifest(path=IMAGE_MANIFEST_PATH):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: Unable to parse image manifest {path}: {exc}")
+        return {}
+
+
+def _render_attributes(attrs):
+    parts = []
+    for name, value in attrs:
+        if value is None:
+            parts.append(f" {name}")
+        else:
+            parts.append(f' {name}="{escape(str(value), quote=True)}"')
+    return "".join(parts)
+
+
+def _build_picture_element(attrs, manifest_entry):
+    if not manifest_entry:
+        return None
+
+    attrs_dict = {name.lower(): value for name, value in attrs}
+    sizes_value = attrs_dict.get("data-img-sizes") or attrs_dict.get("sizes") or "100vw"
+
+    format_priority = ["avif", "webp", "jpg", "jpeg", "png"]
+    fallback_priority = ["jpg", "jpeg", "png", "webp", "avif"]
+    mime_overrides = {"jpg": "image/jpeg", "jpeg": "image/jpeg"}
+
+    sources = []
+    for fmt in format_priority:
+        variants = manifest_entry.get(fmt)
+        if not variants:
+            continue
+        sorted_variants = sorted(
+            (v for v in variants if v.get("path") and v.get("width")),
+            key=lambda item: item["width"],
+        )
+        if not sorted_variants:
+            continue
+        srcset = ", ".join(
+            f"/{variant['path']} {variant['width']}w" for variant in sorted_variants
+        )
+        mime = mime_overrides.get(fmt, f"image/{fmt}")
+        sources.append(
+            f'<source type="{mime}" srcset="{srcset}" sizes="{sizes_value}">'
+        )
+
+    if not sources:
+        return None
+
+    fallback_format = next(
+        (fmt for fmt in fallback_priority if manifest_entry.get(fmt)), None
+    )
+    if not fallback_format:
+        return None
+
+    fallback_variants = sorted(
+        (
+            v
+            for v in manifest_entry[fallback_format]
+            if v.get("path") and v.get("width")
+        ),
+        key=lambda item: item.get("width", 0),
+    )
+    if not fallback_variants:
+        return None
+
+    fallback_src = f"/{fallback_variants[-1]['path']}"
+    fallback_srcset = ", ".join(
+        f"/{variant['path']} {variant['width']}w" for variant in fallback_variants
+    )
+
+    filtered_attrs = [
+        (name, value)
+        for (name, value) in attrs
+        if name.lower() not in {"src", "srcset", "sizes", "data-img-sizes"}
+    ]
+    fallback_attrs = [("src", fallback_src)] + filtered_attrs
+    if fallback_srcset:
+        fallback_attrs.append(("srcset", fallback_srcset))
+    fallback_attrs.append(("sizes", sizes_value))
+
+    img_tag = "<img{}>".format(_render_attributes(fallback_attrs))
+    sources_html = "".join(sources)
+    return f"<picture>{sources_html}{img_tag}</picture>"
+
+
+class ImageReplacementParser(HTMLParser):
+    def __init__(self, manifest):
+        super().__init__(convert_charrefs=False)
+        self.manifest = manifest or {}
+        self.output = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == "img":
+            replacement = self._maybe_replace_image(attrs)
+            if replacement:
+                self.output.append(replacement)
+                return
+        self.output.append(f"<{tag}{_render_attributes(attrs)}>")
+
+    def handle_startendtag(self, tag, attrs):
+        if tag.lower() == "img":
+            replacement = self._maybe_replace_image(attrs)
+            if replacement:
+                self.output.append(replacement)
+                return
+        self.output.append(f"<{tag}{_render_attributes(attrs)} />")
+
+    def handle_endtag(self, tag):
+        self.output.append(f"</{tag}>")
+
+    def handle_data(self, data):
+        self.output.append(data)
+
+    def handle_comment(self, data):
+        self.output.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl):
+        self.output.append(f"<!{decl}>")
+
+    def handle_entityref(self, name):
+        self.output.append(f"&{name};")
+
+    def handle_charref(self, name):
+        self.output.append(f"&#{name};")
+
+    def handle_pi(self, data):
+        self.output.append(f"<?{data}>")
+
+    def _maybe_replace_image(self, attrs):
+        attrs_dict = {k.lower(): v for k, v in attrs}
+        src = attrs_dict.get("src")
+        if not src:
+            return None
+
+        normalized = src.split("?", 1)[0].split("#", 1)[0]
+        normalized = normalized.lstrip("/")
+        if normalized.startswith("./"):
+            normalized = normalized[2:]
+
+        if "assets/images/" not in normalized:
+            return None
+
+        relative = normalized.split("assets/images/", 1)[1]
+        filename = os.path.basename(relative)
+        manifest_entry = self.manifest.get(filename)
+        if not manifest_entry:
+            return None
+
+        return _build_picture_element(attrs, manifest_entry)
+
+    def get_html(self):
+        return "".join(self.output)
+
+
+def replace_images_with_processed(html, manifest):
+    if not html or not manifest:
+        return html
+    parser = ImageReplacementParser(manifest)
+    parser.feed(html)
+    parser.close()
+    return parser.get_html()
 
 
 def main():
@@ -264,6 +446,7 @@ def main():
         site_config = yaml.safe_load(f)
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
     templates = load_templates(env)
+    image_manifest = load_image_manifest()
 
     if args.file:
         print(f"Change detected in {args.file}, proceeding to rebuild...")
@@ -287,7 +470,13 @@ def main():
         page_data, html_content = parse_file(args.file)
         if page_data is None or html_content is None:
             return
-        render_page(page_data, html_content, site_config, templates)
+        render_page(
+            page_data,
+            html_content,
+            site_config,
+            templates,
+            image_manifest=image_manifest,
+        )
     else:
         print("Running a full build...")
         sitemap_list = []
@@ -355,12 +544,22 @@ def main():
         )
         for page in pages:
             render_page(
-                page["data"], page["content"], site_config, templates, all_posts
+                page["data"],
+                page["content"],
+                site_config,
+                templates,
+                image_manifest=image_manifest,
+                all_posts=all_posts,
             )
 
         tag_template = templates.get("tags") or templates.get("tags.html")
         if tag_template:
-            tag_pages(tag_template, site_config, tags)
+            tag_pages(
+                tag_template,
+                site_config,
+                tags,
+                image_manifest=image_manifest,
+            )
         else:
             print("Warning: tags template not found; skipping tag page generation.")
 
