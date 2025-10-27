@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import YAML from 'yaml';
 import { processImages } from './src/image-preprocess.mjs';
 
 dotenv.config();
@@ -14,32 +15,73 @@ const __dirname = path.dirname(__filename);
 
 const inputDir = path.join(__dirname, '/assets/images');
 const outputDir = path.join(__dirname, '/assets/images-processed');
+const siteConfigPath = path.join(__dirname, 'config.yaml');
+const requirementsPath = path.join(__dirname, 'requirements.txt');
+const DEFAULT_PYTHON_EXECUTABLE = 'python3';
 
 processImages(inputDir, outputDir).catch(e =>
   console.error('[images] initial processing failed', e)
 );
 
-const pythonexecutable = process.env.PY_EXECUTABLE;
+const sanitizeExecutable = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+};
 
-if (!pythonexecutable) {
-  throw new Error('Need to set PY_EXECUTABLE environment variable to run build.');
-}
+const loadSiteConfig = () => {
+  try {
+    const raw = fs.readFileSync(siteConfigPath, 'utf8');
+    return YAML.parse(raw) || {};
+  } catch (err) {
+    console.error('[config] Unable to read config.yaml', err);
+    return {};
+  }
+};
+
+const resolvePythonExecutable = () => {
+  const envOverride = sanitizeExecutable(process.env.PY_EXECUTABLE);
+  if (envOverride) {
+    return envOverride;
+  }
+
+  const siteConfig = loadSiteConfig();
+  const runtimeConfig = siteConfig && typeof siteConfig === 'object' ? siteConfig.runtime : null;
+
+  const candidates = [
+    runtimeConfig && runtimeConfig.python_executable,
+    runtimeConfig && runtimeConfig.python,
+    runtimeConfig && runtimeConfig.interpreter,
+    siteConfig && siteConfig.python_executable,
+    siteConfig && siteConfig.python,
+  ];
+
+  for (const candidate of candidates) {
+    const value = sanitizeExecutable(candidate);
+    if (value) {
+      return value;
+    }
+  }
+
+  return DEFAULT_PYTHON_EXECUTABLE;
+};
+
+let pythonExecutable = resolvePythonExecutable();
+console.log(`[config] Using Python executable: ${pythonExecutable}`);
 
 const ensurePythonRequirements = () => {
-  const requirementsPath = path.join(__dirname, 'requirements.txt');
   try {
     console.log('Installing python dependencies...');
-    execSync(`${pythonexecutable} -m pip install -r "${requirementsPath}"`, { stdio: 'inherit' });
+    execSync(`${pythonExecutable} -m pip install -r "${requirementsPath}"`, { stdio: 'inherit' });
   } catch (e) {
     console.error('Failed to install Python dependencies. Verify interpreter path.', e);
   }
 };
 
-ensurePythonRequirements();
-
 const runGenerateStyles = () => {
   try {
-    const output = execSync(`${pythonexecutable} src/main.py --generate-styles`);
+    const output = execSync(`${pythonExecutable} src/main.py --generate-styles`);
     const text = output.toString().trim();
     if (text) {
       console.log(text);
@@ -49,27 +91,28 @@ const runGenerateStyles = () => {
   }
 };
 
+const refreshPythonExecutable = () => {
+  const resolved = resolvePythonExecutable();
+  if (resolved !== pythonExecutable) {
+    console.log(`[config] Python executable updated to: ${resolved}`);
+    pythonExecutable = resolved;
+    ensurePythonRequirements();
+  } else {
+    pythonExecutable = resolved;
+  }
+  return pythonExecutable;
+};
+
+ensurePythonRequirements();
 runGenerateStyles();
 
 const py_build_plugin = () => {
   let ready = false;
 
-  const syntaxCssPath = './assets/css/syntax.css';
-  const syntaxCssDir = path.dirname(syntaxCssPath);
-  const syntaxTheme = process.env.PYGMENTIZE_THEME || 'native';
-  fs.mkdirSync(syntaxCssDir, { recursive: true });
-  try {
-    console.log(`Generating syntax.css with theme "${syntaxTheme}"...`);
-    execSync(`pygmentize -S ${syntaxTheme} -f html > ${syntaxCssPath}`);
-    console.log('Generated syntax.css');
-  } catch (e) {
-    console.error('Failed to generate syntax.css.', e);
-  }
-
   const handleExit = () => {
     console.log('\nCleaning up build files...');
     try {
-      const output = execSync(`${pythonexecutable} src/main.py --clean`);
+      const output = execSync(`${pythonExecutable} src/main.py --clean`);
       console.log(output.toString().trim());
     } catch (e) {
       console.error("Cleanup script failed:", e);
@@ -88,8 +131,8 @@ const py_build_plugin = () => {
 
       const build = (file = null) => {
         const command = file
-          ? `${pythonexecutable} src/main.py --file ${file}`
-          : `${pythonexecutable} src/main.py`;
+          ? `${pythonExecutable} src/main.py --file ${file}`
+          : `${pythonExecutable} src/main.py`;
 
         try {
           const output = execSync(command);
@@ -110,6 +153,7 @@ const py_build_plugin = () => {
         }
 
         if (filePath.endsWith('config.yaml')) {
+          refreshPythonExecutable();
           regenerateGeneratedCss();
           build();
           return;

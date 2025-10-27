@@ -1,5 +1,5 @@
-markdown
-yaml
-jinja2
-shutil
+Markdown
+Jinja2
+PyYAML
 Pygments
+python-dotenv

@@ -1,6 +1,8 @@
 site_name: "site"
 author: "you"
 base_url: "you.com"
+runtime:
+  python_executable: "python3"
 theme:
   default: "hacktoberfest25"
   include:
@@ -47,6 +49,9 @@ fonts:
     body: "'Inter', sans-serif"
     heading: "'Space Grotesk', sans-serif"
     mono: "'JetBrains Mono', monospace"
+
+syntax:
+  pygments_theme: "dracula"
 
 navigation:
   - name: "Home"

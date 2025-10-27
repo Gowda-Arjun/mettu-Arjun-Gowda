@@ -12,10 +12,12 @@ import re
 from html import escape
 from html.parser import HTMLParser
 import dotenv
+from pygments.formatters import HtmlFormatter
+from pygments.util import ClassNotFound
 
 dotenv.load_dotenv()
 
-PYGMENTIZE_THEME = os.getenv("PYGMENTIZE_THEME", "native")
+DEFAULT_PYGMENTS_THEME = "native"
 TEMPLATE_DIR = "templates"
 CONFIG_FILE = "config.yaml"
 OUTPUT_DIR = "."
@@ -27,6 +29,7 @@ PAGE_SLUG_CACHE = ".cache/page-slugs.json"
 IMAGE_MANIFEST_PATH = ".cache/image-manifest.json"
 GENERATED_THEME_PATH = "assets/css/generated.daisyui.css"
 GENERATED_FONTS_PATH = "assets/css/generated.fonts.css"
+GENERATED_SYNTAX_PATH = "assets/css/syntax.css"
 
 
 def load_previous_slugs():
@@ -352,6 +355,51 @@ def write_font_file(config, output_path=GENERATED_FONTS_PATH):
         f.write(css_output)
 
 
+def resolve_pygments_theme(config):
+    syntax_config = config.get("syntax") if isinstance(config, dict) else None
+    theme_candidate = None
+    if isinstance(syntax_config, dict):
+        raw_value = syntax_config.get("pygments_theme") or syntax_config.get("theme")
+        if raw_value is not None:
+            theme_candidate = str(raw_value).strip()
+
+    if not theme_candidate:
+        env_value = os.getenv("PYGMENTIZE_THEME")
+        if env_value:
+            theme_candidate = env_value.strip()
+
+    theme = theme_candidate or DEFAULT_PYGMENTS_THEME
+
+    if not isinstance(syntax_config, dict):
+        syntax_config = {}
+        config["syntax"] = syntax_config
+
+    if "pygments_theme" not in syntax_config or not str(syntax_config["pygments_theme"]).strip():
+        syntax_config["pygments_theme"] = theme
+
+    syntax_config["pygments_theme_resolved"] = theme
+    return theme
+
+
+def generate_syntax_css(theme, output_path=GENERATED_SYNTAX_PATH):
+    try:
+        formatter = HtmlFormatter(style=theme)
+        active_theme = theme
+    except ClassNotFound:
+        fallback = DEFAULT_PYGMENTS_THEME
+        print(
+            f"Warning: Pygments theme '{theme}' not found. Falling back to '{fallback}'."
+        )
+        formatter = HtmlFormatter(style=fallback)
+        active_theme = fallback
+
+    css = formatter.get_style_defs(".highlight")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(css + "\n")
+    return active_theme
+
+
 def generate_styles(
     config_path=CONFIG_FILE,
     theme_path=GENERATED_THEME_PATH,
@@ -360,9 +408,12 @@ def generate_styles(
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
     normalize_theme_config(config)
+    pygments_theme = resolve_pygments_theme(config)
     write_theme_file(config, theme_path)
     write_font_file(config, fonts_path)
-    return config
+    active_theme = generate_syntax_css(pygments_theme)
+    config.setdefault("syntax", {})["pygments_theme_resolved"] = active_theme
+    return config, active_theme
 
 
 MARKDOWN_EXTENSIONS = [
@@ -376,18 +427,16 @@ MARKDOWN_EXTENSIONS = [
     TocExtension(permalink=True),
 ]
 
-MARKDOWN_EXTENSION_CONFIGS = {
-    "codehilite": {
-        "guess_lang": False,
-        "noclasses": False,
-        "pygments_style": PYGMENTIZE_THEME,
-    },
-}
-
-
-def build_markdown():
+def build_markdown(pygments_theme):
+    extension_configs = {
+        "codehilite": {
+            "guess_lang": False,
+            "noclasses": False,
+            "pygments_style": pygments_theme,
+        }
+    }
     return markdown.Markdown(
-        extensions=MARKDOWN_EXTENSIONS, extension_configs=MARKDOWN_EXTENSION_CONFIGS
+        extensions=MARKDOWN_EXTENSIONS, extension_configs=extension_configs
     )
 
 
@@ -408,7 +457,7 @@ def load_templates(env, template_dir=TEMPLATE_DIR, allowed_extensions=(".html", 
     return templates
 
 
-def parse_file(filepath):
+def parse_file(filepath, pygments_theme):
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             file_content = f.read()
@@ -429,7 +478,7 @@ def parse_file(filepath):
         page_config = {}
         markdown_data = file_content
 
-    md = build_markdown()
+    md = build_markdown(pygments_theme)
     html_data = md.convert(markdown_data)
     md.reset()
 
@@ -700,11 +749,13 @@ def main():
         return
 
     if args.generate_styles:
-        generate_styles()
-        print("Generated theme and font CSS.")
+        _, syntax_theme = generate_styles()
+        print(
+            f"Generated theme, font, and syntax CSS (Pygments theme: {syntax_theme})."
+        )
         return
 
-    site_config = generate_styles()
+    site_config, pygments_theme = generate_styles()
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
     templates = load_templates(env)
     image_manifest = load_image_manifest()
@@ -729,7 +780,7 @@ def main():
                 f"No changes detected in {args.file} based on cache; rebuilding anyway."
             )
 
-        page_data, html_content = parse_file(args.file)
+        page_data, html_content = parse_file(args.file, pygments_theme)
         if page_data is None or html_content is None:
             return
         render_page(
@@ -754,7 +805,7 @@ def main():
         for filename in os.listdir(CONTENT_DIR):
             if filename.endswith(".md"):
                 filepath = os.path.join(CONTENT_DIR, filename)
-                page_data, html_content = parse_file(filepath)
+                page_data, html_content = parse_file(filepath, pygments_theme)
                 if not page_data:
                     continue
                 if str(page_data.get("draft")).lower() in ("true", "1", "yes"):
@@ -768,7 +819,7 @@ def main():
             for filename in os.listdir(POSTS_DIR):
                 if filename.endswith(".md"):
                     filepath = os.path.join(POSTS_DIR, filename)
-                    page_data, html_content = parse_file(filepath)
+                    page_data, html_content = parse_file(filepath, pygments_theme)
                     if not page_data:
                         continue
                     if str(page_data.get("draft")).lower() in ("true", "1", "yes"):

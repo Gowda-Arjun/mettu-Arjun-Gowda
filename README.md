@@ -21,10 +21,11 @@ mettu (మెట్లు, /ˈmɛt.t̪u/) is a simple static site generator that
 
    - Note: Python dependencies are installed by default by the initialising script.
 
-3. Create a `.env` file in the root directory and set the environment variables "PY_EXECUTABLE" and "PYGMENTIZE_THEME".
-4. Edit the `config.yaml` file to set your site name, author, navigation links, and DaisyUI theme preferences.
+3. Edit the `config.yaml` file to set your site name, author, runtime configuration, navigation links, syntax highlighting theme, and DaisyUI theme preferences.
 
    ```yaml
+   runtime:
+      python_executable: "python3"    # optional, defaults to python3 when omitted
    theme:
      default: "cupcake"                # active theme used for data-theme
      include: ["cupcake", "dracula"]  # DaisyUI presets to load
@@ -45,18 +46,23 @@ mettu (మెట్లు, /ˈmɛt.t̪u/) is a simple static site generator that
           body: "'Inter', sans-serif"
           heading: "'Space Grotesk', sans-serif"
           mono: "'JetBrains Mono', monospace"
+
+    syntax:
+       pygments_theme: "dracula"   # Controls syntax.css and markdown highlighting
     ```
 
-5. Create markdown files in the `content` directory. Each file should start similarly to the given examples.
-6. Templates and svg icons are located in the `templates` directory. You can customize them as needed.
-7. Assets like css, images, etc are placed in the `assets` directory.
-8. Run the development server
+   You can still override the interpreter via the `PY_EXECUTABLE` environment variable if needed, but the config file is the canonical source.
+
+4. Create markdown files in the `content` directory. Each file should start similarly to the given examples.
+5. Templates and svg icons are located in the `templates` directory. You can customize them as needed.
+6. Assets like css, images, etc are placed in the `assets` directory.
+7. Run the development server
 
    ```bash
    npm run dev
    ```
 
-9. Build the site for production
+8. Build the site for production
 
    ```bash
    npm run build
