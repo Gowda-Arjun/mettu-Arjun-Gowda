@@ -64,6 +64,12 @@ markdown:
     - toc:
         permalink: true
 
+images:
+  formats:
+    - webp
+    - jpg
+
+
 navigation:
   - name: "Home"
     url: "/"

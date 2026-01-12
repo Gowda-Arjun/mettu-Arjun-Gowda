@@ -19,10 +19,19 @@ const outputDir = path.join(__dirname, '/assets/images-processed');
 const siteConfigPath = path.join(__dirname, 'config.yaml');
 const requirementsPath = path.join(__dirname, 'requirements.txt');
 
+const loadSiteConfig = () => {
+  try {
+    const raw = fs.readFileSync(siteConfigPath, 'utf8');
+    return YAML.parse(raw) || {};
+  } catch (err) {
+    console.error('[config] Unable to read config.yaml', err);
+    return {};
+  }
+};
 
-processImages(inputDir, outputDir).catch(e =>
-  console.error('[images] initial processing failed', e)
-);
+
+// Image processing moved to defineConfig
+
 
 if (!fs.existsSync(inputDir)) {
   fs.mkdirSync(inputDir, { recursive: true });
@@ -35,15 +44,7 @@ const sanitizeExecutable = (value) => {
   return value.trim();
 };
 
-const loadSiteConfig = () => {
-  try {
-    const raw = fs.readFileSync(siteConfigPath, 'utf8');
-    return YAML.parse(raw) || {};
-  } catch (err) {
-    console.error('[config] Unable to read config.yaml', err);
-    return {};
-  }
-};
+// function moved up
 
 const resolvePythonExecutable = () => {
   const envOverride = sanitizeExecutable(process.env.PY_EXECUTABLE);
@@ -217,7 +218,14 @@ const py_build_plugin = () => {
   };
 };
 
-export default defineConfig(({ command }) => {
+export default defineConfig(async ({ command }) => {
+  try {
+    const siteConfig = loadSiteConfig();
+    await processImages(inputDir, outputDir, siteConfig);
+  } catch (e) {
+    console.error('[images] processing failed', e);
+  }
+
   if (command === 'build') {
     console.log('Buiding static pages for production');
     try {

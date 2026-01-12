@@ -678,7 +678,8 @@ def _build_picture_element(attrs, manifest_entry):
         if not sorted_variants:
             continue
         srcset = ", ".join(
-            f"/{variant['path']} {variant['width']}w" for variant in sorted_variants
+            f"{variant['path'] if variant['path'].startswith('http') else '/' + variant['path']} {variant['width']}w"
+            for variant in sorted_variants
         )
         mime = mime_overrides.get(fmt, f"image/{fmt}")
         sources.append(
@@ -705,9 +706,14 @@ def _build_picture_element(attrs, manifest_entry):
     if not fallback_variants:
         return None
 
-    fallback_src = f"/{fallback_variants[-1]['path']}"
+    if fallback_variants[-1]['path'].startswith("http"):
+        fallback_src = fallback_variants[-1]['path']
+    else:
+        fallback_src = f"/{fallback_variants[-1]['path']}"
+
     fallback_srcset = ", ".join(
-        f"/{variant['path']} {variant['width']}w" for variant in fallback_variants
+        f"{variant['path'] if variant['path'].startswith('http') else '/' + variant['path']} {variant['width']}w" 
+        for variant in fallback_variants
     )
 
     filtered_attrs = [
