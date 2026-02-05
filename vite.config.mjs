@@ -104,7 +104,7 @@ const ensurePythonRequirements = () => {
   if (!fs.existsSync(venvPath)) {
     console.log('Creating python virtual environment...');
     try {
-      execSync(`python -m venv "${venvPath}"`, { stdio: 'inherit' });
+      execSync(`\"${pythonExecutable}\" -m venv "${venvPath}"`, { stdio: 'inherit' });
       pythonExecutable = venvPython;
     } catch (e) {
       console.error('Failed to create virtual environment.', e);
@@ -115,7 +115,7 @@ const ensurePythonRequirements = () => {
   try {
     console.log('Installing python dependencies...');
 
-    execSync(`"${venvPip}" install -r "${requirementsPath}"`, { stdio: 'inherit' });
+    execSync(`\"${venvPip}\" install -r "${requirementsPath}"`, { stdio: 'inherit' });
   } catch (e) {
     console.error('Failed to install Python dependencies.', e);
   }
@@ -123,7 +123,7 @@ const ensurePythonRequirements = () => {
 
 const runGenerateStyles = () => {
   try {
-    const output = execSync(`${pythonExecutable} src/main.py --generate-styles`);
+    const output = execSync(`"${pythonExecutable}" src/main.py --generate-styles`);
     const text = output.toString().trim();
     if (text) {
       console.log(text);
@@ -151,7 +151,7 @@ runGenerateStyles();
 const handleExit = () => {
   console.log('\nCleaning up build files...');
   try {
-    const output = execSync(`${pythonExecutable} src/main.py --clean`);
+    const output = execSync(`"${pythonExecutable}" src/main.py --clean`);
     console.log(output.toString().trim());
   } catch (e) {
     console.error("Cleanup script failed:", e);
@@ -172,7 +172,7 @@ const py_build_plugin = () => {
     closeBundle() {
       console.log('Cleaning up root directory...');
       try {
-        const output = execSync(`${pythonExecutable} src/main.py --clean`);
+        const output = execSync(`"${pythonExecutable}" src/main.py --clean`);
         console.log(output.toString().trim());
       } catch (e) {
         console.error('Failed to cleanup:', e);
@@ -185,11 +185,11 @@ const py_build_plugin = () => {
 
       const build = (file = null) => {
         const command = file
-          ? `${pythonExecutable} src/main.py --file ${file}`
-          : `${pythonExecutable} src/main.py`;
+          ? `"${pythonExecutable}" src/main.py --file ${file}`
+          : `"${pythonExecutable}" src/main.py`;
 
         try {
-          const output = execSync(command);
+          const output = execSync(`${command}`);
           console.log(output.toString().trim());
 
           server.ws.send({ type: 'full-reload', path: "*" });
@@ -260,7 +260,8 @@ export default defineConfig(async ({ command }) => {
   if (command === 'build') {
     console.log('Buiding static pages for production');
     try {
-      const output = execSync(`${pythonExecutable} src/main.py`);
+      const main_py = fileURLToPath("file://" + __dirname + "/src/main.py");
+      const output = execSync(`"${pythonExecutable}" "${main_py}"`);
       console.log(output.toString().trim());
     } catch (e) {
       console.error('Failed to generate static files:', e);
