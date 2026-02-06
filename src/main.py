@@ -37,7 +37,7 @@ GENERATED_SYNTAX_PATH = "assets/css/syntax.css"
 
 def load_previous_slugs():
     try:
-        with open(PAGE_SLUG_CACHE, "r") as f:
+        with open(PAGE_SLUG_CACHE, "r", encoding="utf-8") as f:
             return set(json.load(f))
     except:
         return set()
@@ -68,9 +68,10 @@ def clean_output(directory):
     removed_any = False
     for root, _, files in os.walk(directory, topdown=False):
         rel_root = os.path.relpath(root, directory)
+        rel_root = rel_root.replace("\\", "/")
         if rel_root == ".":
             rel_root = ""
-        top_level = rel_root.split(os.sep)[0] if rel_root else ""
+        top_level = rel_root.split("/")[0] if rel_root else ""
 
         if top_level in preserved_roots:
             continue

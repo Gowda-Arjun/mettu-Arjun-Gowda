@@ -104,7 +104,7 @@ const ensurePythonRequirements = () => {
   if (!fs.existsSync(venvPath)) {
     console.log('Creating python virtual environment...');
     try {
-      execSync(`python -m venv "${venvPath}"`, { stdio: 'inherit' });
+      execSync(`"${pythonExecutable}" -m venv "${venvPath}"`, { stdio: 'inherit' });
       pythonExecutable = venvPython;
     } catch (e) {
       console.error('Failed to create virtual environment.', e);
@@ -123,7 +123,7 @@ const ensurePythonRequirements = () => {
 
 const runGenerateStyles = () => {
   try {
-    const output = execSync(`${pythonExecutable} src/main.py --generate-styles`);
+    const output = execSync(`"${pythonExecutable}" src/main.py --generate-styles`);
     const text = output.toString().trim();
     if (text) {
       console.log(text);
@@ -151,7 +151,7 @@ runGenerateStyles();
 const handleExit = () => {
   console.log('\nCleaning up build files...');
   try {
-    const output = execSync(`${pythonExecutable} src/main.py --clean`);
+    const output = execSync(`"${pythonExecutable}" src/main.py --clean`);
     console.log(output.toString().trim());
   } catch (e) {
     console.error("Cleanup script failed:", e);
@@ -172,7 +172,7 @@ const py_build_plugin = () => {
     closeBundle() {
       console.log('Cleaning up root directory...');
       try {
-        const output = execSync(`${pythonExecutable} src/main.py --clean`);
+        const output = execSync(`"${pythonExecutable}" src/main.py --clean`);
         console.log(output.toString().trim());
       } catch (e) {
         console.error('Failed to cleanup:', e);
@@ -185,8 +185,8 @@ const py_build_plugin = () => {
 
       const build = (file = null) => {
         const command = file
-          ? `${pythonExecutable} src/main.py --file ${file}`
-          : `${pythonExecutable} src/main.py`;
+          ? `"${pythonExecutable}" src/main.py --file ${file}`
+          : `"${pythonExecutable}" src/main.py`;
 
         try {
           const output = execSync(command);
@@ -198,8 +198,6 @@ const py_build_plugin = () => {
           console.error("Script failed to update: ", e);
         }
       };
-
-      build();
 
       build();
 
@@ -239,7 +237,6 @@ const py_build_plugin = () => {
           build();
         }
         if (event === 'unlink') {
-          // This might be redundant if specific handlers catch it, but keeps original logic for other files
           if (!filePath.includes('/assets/images/')) {
               build();
           }
