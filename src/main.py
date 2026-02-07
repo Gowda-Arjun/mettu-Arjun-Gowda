@@ -62,41 +62,56 @@ def clean_output(directory):
         "node_modules",
         "src",
         "templates",
+        "scripts",
+        "config.yaml",
+        "package.json",
+        "package-lock.json",
+        "requirements.txt",
+        "vite.config.mjs",
+        "README.md",
+        "LICENSE.md",
+        "CONTRIBUTING.md",
+        ".env",
+        ".env.example",
+        ".gitignore",
+        ".dockerignore",
+        "Dockerfile",
     }
-    generated_roots = {"blog", "tags", "posts"}
+    
+    preserved_files = {
+        "config.yaml",
+        "package.json",
+        "package-lock.json",
+        "requirements.txt",
+        "vite.config.mjs",
+        "README.md",
+        "LICENSE.md",
+        "CONTRIBUTING.md",
+        ".env",
+        ".env.example",
+        ".gitignore",
+    }
 
-    removed_any = False
-    for root, _, files in os.walk(directory, topdown=False):
-        rel_root = os.path.relpath(root, directory)
-        rel_root = rel_root.replace("\\", "/")
-        if rel_root == ".":
-            rel_root = ""
-        top_level = rel_root.split("/")[0] if rel_root else ""
-
-        if top_level in preserved_roots:
+    for name in os.listdir(directory):
+        path = os.path.join(directory, name)
+        
+        if name in preserved_roots or name in preserved_files:
+            continue
+            
+        if name.startswith(".") and name not in preserved_roots:
             continue
 
-        for filename in files:
-            delete_file = False
-            if top_level in generated_roots:
-                delete_file = True
-            elif filename == "index.html" or filename.endswith(".xml"):
-                delete_file = True
+        try:
+            if os.path.isfile(path) or os.path.islink(path):
+                os.remove(path)
+                print(f"Deleted file: {path}")
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
+                print(f"Deleted directory: {path}")
+        except Exception as e:
+            print(f"Failed to delete {path}: {e}")
 
-            if delete_file:
-                file_path = os.path.join(root, filename)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    removed_any = True
-                    print(f"Deleted: {file_path}")
-
-        if rel_root and top_level not in preserved_roots and not os.listdir(root):
-            os.rmdir(root)
-            removed_any = True
-            print(f"Deleted empty directory: {root}")
-
-    if not removed_any:
-        print("No generated files found to delete.")
+    print("Cleanup complete.")
 
 
 def has_file_changed(filepath, cache_dir=".cache"):
