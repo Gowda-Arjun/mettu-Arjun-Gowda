@@ -3,10 +3,11 @@ author: "Arjun Gowda"
 base_url: "CowsSayMoo.com"
 
 theme:
-  default: "hacktoberfest25"
+  default: "amethyst"
   include:
     - "hacktoberfest25"
     - "dracula"
+    - "amethyst"
   custom:
     hacktoberfest25: |
       /* Raw CSS Theme */
@@ -24,6 +25,38 @@ theme:
       --color-accent-content: #1C1C3F;
       --color-neutral: #403F7D;
       --color-neutral-content: #FFFFFF;
+      --color-info: oklch(88% 0.059 254.128);
+      --color-info-content: oklch(29% 0.066 243.157);
+      --color-success: oklch(77% 0.152 181.912);
+      --color-success-content: oklch(27% 0.046 192.524);
+      --color-warning: #fbbd23;
+      --color-warning-content: oklch(28% 0.066 53.813);
+      --color-error: #f87272;
+      --color-error-content: oklch(25% 0.092 26.042);
+      --radius-selector: 2rem;
+      --radius-field: 1rem;
+      --radius-box: 1rem;
+      --size-selector: 0.28125rem;
+      --size-field: 0.25rem;
+      --border: 1px;
+      --depth: 0;
+      --noise: 1;
+    amethyst: |
+      /* Amethyst Theme */
+      prefers-dark: true;
+      color-scheme: dark;
+      --color-base-100: #6d5965;
+      --color-base-200: #4a3d66;
+      --color-base-300: #5f5183;
+      --color-base-content: #a8d4ff;
+      --color-primary: #7d6fa8;
+      --color-primary-content: #a8d4ff;
+      --color-secondary: #4a3d66;
+      --color-secondary-content: #a8d4ff;
+      --color-accent: #9582c3;
+      --color-accent-content: #a8d4ff;
+      --color-neutral: #7a6877;
+      --color-neutral-content: #a8d4ff;
       --color-info: oklch(88% 0.059 254.128);
       --color-info-content: oklch(29% 0.066 243.157);
       --color-success: oklch(77% 0.152 181.912);
