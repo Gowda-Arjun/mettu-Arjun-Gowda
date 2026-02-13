@@ -12,7 +12,11 @@ site.theme.default is defined else (site.theme if site.theme is defined else "dr
 </head>
 
 <body class="pt-24 min-h-screen flex flex-col">
-  <div class="navbar bg-base-100 fixed top-0 left-0 z-50">
+  <!-- Vanta background -->
+   <!-- https://www.vantajs.com/?effect=clouds#(backgroundAlpha:1,backgroundColor:16777215,cloudColor:4943033,cloudShadowColor:1784149,gyroControls:!f,minHeight:200,minWidth:200,mouseControls:!t,mouseEase:!t,scale:3,scaleMobile:12,skyColor:2305104,speed:0,sunColor:11506677,sunGlareColor:16737843,sunlightColor:16750899,touchControls:!t)-->
+  <div id="vanta-background" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></div>
+  
+  <div class="navbar fixed top-0 left-0 z-50" style="background-color: transparent;">
     <div class="flex-1">
       <a href="/" class="btn btn-ghost text-xl">{{ site.site_name }}</a>
     </div>
@@ -32,6 +36,25 @@ site.theme.default is defined else (site.theme if site.theme is defined else "dr
   <footer class="mt-auto w-full text-center py-6">
     Generated using mettu, with ❤️
   </footer>
+
+  <!-- Vanta.js scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="/assets/otherFiles/vanta.clouds.min.js"></script>
+  <script>
+    VANTA.CLOUDS({
+      el: "#vanta-background",
+      mouseControls: true,
+      touchControls: true,
+      gyroControls: false,
+      minHeight: 200.00,
+      minWidth: 200.00,
+      skyColor: 0x232c50,
+      cloudColor: 0x4b6cb9,
+      cloudShadowColor: 0x1b3955,
+      sunColor: 0xaf93f5,
+      speed: 0.00
+    })
+  </script>
 </body>
 
 </html>

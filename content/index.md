@@ -2,7 +2,15 @@
 title: "Home"
 layout: "main"
 hero_title: "Arjun Gowda"
-hero_subtitle: "Second year CSE keed at PES University, ECC."
+hero_subtitle: |
+  Second year CSE @ PES University, ECC.
+
+  Avid cat lover, mentally fueled by music, sports, and almost always- Caffeine.
+
+  On the tech side, I enjoy Computer Networks and ML the most, with other domains closely following.
+  
+  Want to know more? explore the site :D
+
 hero_image: "/assets/images/p1.jpeg"
 social_links:
     - name: "GitHub"
