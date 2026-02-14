@@ -269,6 +269,7 @@ export default defineConfig(async ({ command }) => {
   const inputFiles = glob.sync(['**/*.html', '!dist/**', '!node_modules/**', '!**/.venv/**', '!templates/**']);
 
   return {
+    base: '/',
     plugins: [
       py_build_plugin(),
       tailwindcss(),
